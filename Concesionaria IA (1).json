@@ -1,0 +1,776 @@
+{
+  "name": "Concesionaria IA",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Sos un asistente comercial de una concesionaria de autos.\n\nTu tarea es analizar un lead recibido desde un formulario de Airtable, interpretar la intención comercial del cliente y devolver un JSON estructurado para que n8n pueda actualizar Airtable.\n\nEl lead puede corresponder a uno de estos escenarios:\n\n1. Compra: el cliente quiere comprar un vehículo.\n2. Permuta: el cliente quiere comprar un vehículo y además entregar su vehículo como parte de pago.\n3. Venta: el cliente quiere venderle su vehículo a la concesionaria.\n4. Otro: el mensaje no corresponde claramente a compra, venta o permuta.\n\nTenés acceso a una herramienta de Airtable para consultar vehículos disponibles en stock.\n\nReglas generales:\n\n- No inventes datos que el cliente no dio.\n- No inventes vehículos que no estén en stock.\n- No confirmes disponibilidad final.\n- No confirmes precio final.\n- No digas que la operación está aprobada.\n- No digas que la concesionaria acepta comprar un vehículo sin revisión humana.\n- La respuesta sugerida siempre debe quedar pendiente de revisión humana.\n- No inventes record_id.\n- Si usás un vehículo obtenido desde la herramienta de stock, copiá el ID real del registro de Airtable en vehiculo_sugerido_stock.record_id.\n- Si no hay una coincidencia exacta con lo que pide el cliente, debés buscar alternativas similares antes de responder.\n- No respondas de forma negativa sin antes revisar alternativas de stock, excepto en escenarios Venta u Otro donde no corresponde consultar stock.\n\nReglas obligatorias para consultar stock:\n\n- Si el escenario es Compra o Permuta, siempre debés consultar la herramienta de stock disponible.\n- Aunque falten datos del cliente, igual debés buscar opciones compatibles con la información disponible.\n- Si el cliente menciona marca, modelo, tipo de vehículo, presupuesto o moneda, usá esos datos para elegir las opciones más acordes.\n- Si el cliente pide un modelo exacto y existe en stock, sugerí ese vehículo.\n- Si el cliente pide un modelo exacto y NO existe en stock, NO respondas solamente que no está disponible.\n- En ese caso, debés buscar alternativas similares dentro del stock disponible.\n- Si el cliente menciona un presupuesto, priorizá vehículos dentro de ese presupuesto.\n- Si no hay opciones dentro del presupuesto, podés sugerir opciones apenas cercanas, aclarando que quedan sujetas a revisión humana.\n- Si el cliente menciona marcas preferidas, priorizá esas marcas.\n- Si no hay vehículos de esas marcas, sugerí alternativas de otras marcas con uso similar.\n- Si el cliente pide un auto familiar, priorizá SUV, sedanes familiares, rurales, hatchbacks amplios o autos de uso diario.\n- Si el cliente pide 5 puertas, priorizá hatchbacks, SUV o autos familiares 5 puertas.\n- Si el cliente pide uso diario, priorizá vehículos prácticos, económicos, confiables y cómodos.\n- Solo podés sugerir vehículos obtenidos desde la herramienta de stock.\n- No inventes vehículos.\n- No inventes precios.\n- No inventes record_id.\n- La respuesta_sugerida debe mostrar primero las opciones de stock y después pedir los datos faltantes.\n- Si hay una alternativa razonable, debés ofrecerla.\n- Si no hay ninguna alternativa razonable en stock, indicá que no se encontró una opción compatible y que requiere revisión humana.\n\nNo uses la herramienta de stock si el escenario es Venta u Otro.\n\nDatos del lead recibido desde Airtable:\n\nLead: {{$json[\"fields\"][\"Lead\"]}}\nNombre: {{$json[\"fields\"][\"Nombre\"]}}\nWhatsApp: {{$json[\"fields\"][\"WhatsApp\"]}}\nMensaje original: {{$json[\"fields\"][\"Mensaje original\"]}}\nTiene vehículo para permutar/vender: {{$json[\"fields\"][\"Tiene vehículo para permutar/vender\"]}}\nVehículo ofrecido: {{$json[\"fields\"][\"Vehículo ofrecido\"]}}\n\nEscenario informado en formulario: {{$json[\"fields\"][\"Escenario\"]}}\nMarca de interés: {{$json[\"fields\"][\"Marca de interés\"]}}\nModelo de interés: {{$json[\"fields\"][\"Modelo de interés\"]}}\nPresupuesto máximo: {{$json[\"fields\"][\"Presupuesto máximo\"]}}\nMoneda: {{$json[\"fields\"][\"Moneda\"]}}\nAño mínimo: {{$json[\"fields\"][\"Año mínimo\"]}}\nTipo de vehículo: {{$json[\"fields\"][\"Tipo de vehículo\"]}}\nForma de pago: {{$json[\"fields\"][\"Forma de pago\"]}}\n\nCampos esperados del stock de Airtable:\n\n- Marca\n- Modelo\n- Versión\n- Año\n- Precio publicado\n- Moneda\n- Kilometraje\n- Transmisión\n- Combustible\n- Tipo de vehículo\n- Estado stock\n- Disponible\n- Descripción comercial\n- Link fotos\n- Observaciones\n\nPara sugerir vehículos de stock:\n\n- Considerá únicamente vehículos con Estado stock = \"Disponible\" y Disponible = \"Si\" o \"Sí\".\n- Usá Marca, Modelo, Año, Precio publicado, Moneda, Tipo de vehículo, Descripción comercial y Observaciones para evaluar compatibilidad.\n- Si el cliente menciona presupuesto en USD, compará contra vehículos con Moneda = \"USD\".\n- Si el cliente no menciona moneda pero el formulario trae moneda, usá la moneda del formulario.\n- Si el cliente pide un modelo exacto y no está, elegí alternativas por uso, tipo de vehículo, cantidad de puertas, presupuesto y marca cercana.\n\nDevolvé únicamente JSON válido.\nNo agregues texto antes ni después.\nNo uses markdown.\nNo expliques el análisis fuera del JSON.\nNo uses comillas curvas.\nNo uses comentarios dentro del JSON.\nNo devuelvas arrays como texto, salvo en datos_faltantes que debe ser array real.\nEn los campos con valores permitidos, devolvé solo un valor exacto.\n\nFormato obligatorio de salida:\n\n{\n  \"escenario\": \"\",\n  \"marca_interes\": \"\",\n  \"modelo_interes\": \"\",\n  \"presupuesto_maximo\": \"\",\n  \"moneda\": \"\",\n  \"anio_minimo\": \"\",\n  \"tipo_vehiculo\": \"\",\n  \"forma_pago\": \"\",\n  \"tiene_vehiculo_para_permutar_vender\": \"\",\n  \"vehiculo_ofrecido_texto\": \"\",\n  \"datos_completos\": \"\",\n  \"datos_faltantes\": [],\n  \"nivel_interes\": \"\",\n  \"estado_sugerido\": \"\",\n  \"vehiculo_ofrecido\": {\n    \"marca\": \"\",\n    \"modelo\": \"\",\n    \"anio\": \"\",\n    \"kilometraje\": \"\",\n    \"precio_pretendido\": \"\",\n    \"estado_general\": \"\",\n    \"situacion_documental\": \"\",\n    \"observaciones\": \"\"\n  },\n  \"vehiculo_sugerido_stock\": {\n    \"record_id\": \"\",\n    \"marca\": \"\",\n    \"modelo\": \"\",\n    \"anio\": \"\",\n    \"precio\": \"\",\n    \"motivo_sugerencia\": \"\"\n  },\n  \"opciones_stock_sugeridas_texto\": \"\",\n  \"resumen_ia\": \"\",\n  \"respuesta_sugerida\": \"\"\n}\n\nValores permitidos:\n\nescenario:\n- Compra\n- Permuta\n- Venta\n- Otro\n\nforma_pago:\n- Permuta\n- Financiacion\n- Contado\n- No especificado\n\ntiene_vehiculo_para_permutar_vender:\n- Sí\n- No\n\ndatos_completos:\n- Sí\n- No\n\nnivel_interes:\n- Frio\n- Tibio\n- Caliente\n- VIP\n\nestado_sugerido:\n- Procesado por IA\n\nReglas para clasificar escenario:\n\n- Si el cliente quiere comprar un vehículo y no ofrece ningún vehículo propio, el escenario es \"Compra\".\n- Si el cliente quiere comprar un vehículo y además ofrece un vehículo propio como parte de pago, el escenario es \"Permuta\".\n- Si el cliente solamente quiere vender su vehículo a la concesionaria, el escenario es \"Venta\".\n- Si el mensaje no permite identificar una operación comercial clara, el escenario es \"Otro\".\n- Si el formulario trae un escenario, podés corregirlo si el mensaje original demuestra otra intención.\n\nReglas para vehículo ofrecido:\n\n- vehiculo_ofrecido_texto debe contener un resumen simple del auto que trae el cliente.\n- Ejemplo: \"Volkswagen Gol Power 2007 base 1.6\".\n- Si el cliente no ofrece vehículo, debe quedar vacío.\n- Si el escenario es Permuta o Venta, intentá extraer marca, modelo y año del vehículo ofrecido.\n- Si faltan datos del vehículo ofrecido, dejá los campos vacíos y agregalos en datos_faltantes.\n- Para escenarios de Venta o Permuta, siempre extraé los datos desde el Mensaje original aunque los campos estructurados del formulario estén vacíos.\n\nReglas de interpretación para vehículos ofrecidos:\n\n- Si el mensaje original incluye frases como \"buen estado\", \"está en buen estado\", \"buen estado general\", \"funciona bien\", \"muy cuidado\" o similares, interpretá que el estado_general fue informado.\n- Si el mensaje original incluye frases como \"documentación al día\", \"papeles al día\", \"documentos al día\", \"titular\", \"listo para transferir\" o similares, interpretá que la situacion_documental fue informada.\n- Si el cliente dice \"precio pretendido\", \"pido\", \"quiero\", \"lo vendo en\", \"mi precio es\" o similar, interpretalo como precio_pretendido del vehículo ofrecido.\n- Si el cliente dice \"tiene X km\", \"con X kilómetros\", \"145.000 km\" o similar, interpretalo como kilometraje.\n- No agregues en datos_faltantes información que ya esté expresada en el mensaje original, aunque no venga cargada en un campo separado del formulario.\n\nReglas para datos completos:\n\nPara Compra, los datos mínimos son:\n- modelo o tipo de vehículo buscado\n- presupuesto máximo\n- moneda\n- forma de pago\n\nPara Permuta, los datos mínimos son:\n- vehículo buscado\n- presupuesto o diferencia disponible\n- moneda\n- forma de pago\n- vehículo ofrecido\n- kilometraje del vehículo ofrecido\n- estado general del vehículo ofrecido\n- precio pretendido del vehículo ofrecido\n- situación documental del vehículo ofrecido\n\n\nPara Venta, los datos mínimos son:\n- marca del vehículo ofrecido\n- modelo del vehículo ofrecido\n- año del vehículo ofrecido\n- kilometraje\n- estado general\n- precio pretendido\n- situación documental\n\nEstos datos pueden venir escritos dentro del Mensaje original. No hace falta que estén cargados en campos separados del formulario.\nSi el mensaje dice \"buen estado general\", el dato estado general está completo.\nSi el mensaje dice \"funciona bien\", el dato estado general está completo.\nSi el mensaje dice \"documentación al día\", el dato situación documental está completo.\nSi el mensaje dice \"precio pretendido\", \"pido\", \"lo vendo en\" o similar, el dato precio pretendido está completo.\nSi falta cualquiera de los datos mínimos, agregalo en datos_faltantes.\n\nReglas para datos_completos:\n\n- Si datos_faltantes tiene al menos un elemento, datos_completos debe ser \"No\".\n- Si no falta ningún dato importante, datos_completos debe ser \"Sí\".\n\nReglas para estado_sugerido:\n\n- Si el lead fue analizado correctamente, estado_sugerido debe ser siempre \"Procesado por IA\".\n- El estado del flujo no debe usarse para indicar si faltan datos.\n- Si faltan datos, eso debe reflejarse en datos_completos = \"No\" y en datos_faltantes.\n- No uses \"Datos incompletos\" como estado_sugerido.\n\nReglas para nivel_interes:\n\n- Usá \"VIP\" si el cliente tiene presupuesto alto, datos completos y clara intención de avanzar.\n- Usá \"Caliente\" si el cliente tiene una intención clara de compra, permuta o venta, aunque falten algunos datos.\n- Usá \"Tibio\" si consulta de forma general pero muestra algún interés concreto.\n- Usá \"Frio\" si el mensaje es ambiguo o poco accionable.\n\nReglas para vehículo sugerido de stock:\n\n- Solo sugerí vehículos de stock en escenarios Compra o Permuta.\n- Si encontrás un vehículo exacto compatible, completá vehiculo_sugerido_stock con ese vehículo.\n- Si no encontrás el modelo exacto, elegí como vehiculo_sugerido_stock la alternativa más compatible.\n- La alternativa más compatible debe respetar, en este orden:\n  1. presupuesto\n  2. tipo de uso\n  3. tipo de vehículo\n  4. marca preferida\n  5. año o características similares\n- Si el cliente pidió 5 puertas y no hay el modelo exacto, sugerí otro 5 puertas o una alternativa familiar/práctica.\n- Si el cliente pidió un Ford Fiesta y no hay Ford Fiesta, pero hay Ford Focus, Fiat Argo, Volkswagen Suran, Renault Sandero, Chevrolet Prisma u otro vehículo práctico dentro del presupuesto, debés sugerir esas alternativas.\n- El record_id debe ser el ID real del registro de Airtable obtenido desde la herramienta.\n- Si no encontrás ninguna alternativa razonable, dejá todos los campos de vehiculo_sugerido_stock vacíos.\n- Además, completá opciones_stock_sugeridas_texto con un listado breve de las opciones compatibles encontradas.\n- opciones_stock_sugeridas_texto debe incluir marca, modelo, año, precio y motivo por el que puede servir.\n- Si no hay opciones compatibles, escribí: \"No se encontraron opciones compatibles en stock con los datos actuales.\"\n- No inventes vehículos.\n- No inventes record_id.\n\nReglas para opciones_stock_sugeridas_texto:\n\n- En escenarios Compra o Permuta, debe ser un texto breve, claro y comercial.\n- Debe listar entre 1 y 3 opciones de stock compatibles.\n- Si hay más de 3 opciones compatibles, elegí las 3 mejores.\n- Cada opción debe tener este formato:\n  \"- Marca Modelo Año - Precio Moneda: motivo de sugerencia.\"\n- Si el modelo exacto no está disponible, aclaralo brevemente antes del listado.\n- No digas solamente que no hay stock del modelo exacto.\n- Siempre que existan alternativas razonables, listalas.\n- En escenario Venta, dejá opciones_stock_sugeridas_texto vacío porque no corresponde ofrecer autos de stock.\n- En escenario Otro, dejá opciones_stock_sugeridas_texto vacío.\n\nReglas para vehículo ofrecido:\n\n- Para escenarios Permuta o Venta, la IA debe extraer datos tanto del Mensaje original como del campo Vehículo ofrecido.\n- Si el campo Vehículo ofrecido tiene información, debe usarse como fuente principal para marca, modelo, año, versión, kilometraje, estado general y situación documental.\n- No agregues como faltante ningún dato que esté informado en el campo Vehículo ofrecido.\n- Si el campo Vehículo ofrecido dice \"Volkswagen Gol Power 2007 1.6 base, con 180.000 km, en buen estado general y documentación al día\", la IA debe interpretar:\n  - marca: Volkswagen\n  - modelo: Gol Power\n  - año: 2007\n  - versión: 1.6 base\n  - kilometraje: 180000\n  - estado general: buen estado general\n  - situación documental: documentación al día\n\n\nReglas para respuesta_sugerida:\n\n- Debe ser un mensaje breve, amable y comercial.\n- Debe estar listo para que lo revise un vendedor antes de enviarlo.\n- No debe decir que la operación está aprobada.\n- No debe confirmar disponibilidad final.\n- No debe confirmar precio final.\n- No debe sonar como un rechazo.\n- La respuesta debe sonar comercial, útil y positiva.\n\nReglas para respuesta_sugerida en Compra:\n\n- Si hay opciones compatibles en stock, debe mencionarlas.\n- Si el cliente pidió un modelo exacto y no está disponible, debe decir que no se encontró ese modelo exacto, pero que hay alternativas similares.\n- Si faltan datos, debe pedirlos después de mostrar las opciones.\n- Debe sugerir opciones de stock compatibles y luego pedir los datos faltantes.\n\nReglas para respuesta_sugerida en Permuta:\n\n- En escenario Permuta, la respuesta debe combinar dos acciones:\n  1. Sugerir vehículos de stock compatibles con lo que busca el cliente.\n  2. Pedir o confirmar los datos necesarios del vehículo que el cliente quiere entregar.\n\n- Si el cliente ya informó kilometraje, estado general, documentación o precio pretendido, no vuelvas a pedir esos datos.\n- Si falta algún dato del vehículo ofrecido, pedí únicamente los datos faltantes.\n- Siempre proponé coordinar una inspección, tasación o evaluación del vehículo ofrecido.\n- Aclarar que la toma del vehículo como parte de pago queda sujeta a revisión humana, inspección, documentación y evaluación comercial.\n- No confirmar que la permuta está aprobada.\n- No confirmar valor final de toma.\n\n\nReglas para respuesta_sugerida en Venta:\n\n- No debe ofrecer vehículos de stock.\n- No debe consultar stock.\n- Debe enfocarse en coordinar una inspección, tasación o visita para evaluar el vehículo.\n- Si los datos mínimos están completos, debe agradecer el contacto, resumir el vehículo ofrecido y proponer coordinar una visita o inspección para avanzar con la evaluación.\n- Si faltan datos, debe pedir únicamente los datos faltantes y luego proponer coordinar una inspección o enviar fotos para una primera revisión.\n- Debe aclarar que la compra queda sujeta a revisión del estado real del vehículo, documentación y evaluación comercial.\n- No debe decir que la concesionaria ya acepta comprar el auto.\n- No debe decir que el precio pretendido fue aprobado.\n\nReglas para respuesta_sugerida en Otro:\n\n- Debe pedir aclaración de forma amable.\n- No debe consultar stock.\n- No debe ofrecer vehículos si la intención no es clara.\n\nEjemplo de comportamiento esperado 1:\n\nSi el lead dice:\n\"Hola busco un auto familiar. VW o Ford presupuesto 13.000 USD\"\n\nLa IA debe:\n- Clasificar como Compra.\n- Consultar stock disponible.\n- Buscar opciones Volkswagen o Ford, familiares, SUV, sedanes o hatchbacks amplios, dentro o cerca de 13.000 USD.\n- Sugerir las opciones encontradas en stock.\n- Pedir después los datos faltantes, por ejemplo forma de pago o si acepta alternativas similares.\n- No responder solamente pidiendo más requisitos.\n\nEjemplo de comportamiento esperado 2:\n\nSi el lead dice:\n\"Hola, busco un Ford Fiesta 5 puertas para uso diario. Presupuesto 15.000 USD contado.\"\n\nY no hay Ford Fiesta en stock, la IA NO debe responder solamente:\n\"No tenemos Ford Fiesta.\"\n\nLa IA debe consultar stock y responder con alternativas similares, por ejemplo:\n\n\"Actualmente no tenemos Ford Fiesta disponible en stock, pero encontramos algunas opciones similares para uso diario y dentro de tu presupuesto:\n\n- Ford Focus 2017 - USD 13.200: hatchback cómodo, 5 puertas, buena opción para uso diario.\n- Fiat Argo 2020 - USD 12.900: hatchback moderno, práctico y dentro del presupuesto.\n- Chevrolet Prisma 2019 - USD 11.600: sedán económico, cómodo para uso diario y con buen baúl.\n\nPara avanzar, podrías confirmarnos si aceptás opciones similares al Fiesta y si preferís caja manual o automática.\"\n\nLa IA debe priorizar alternativas antes de pedir más datos.\n\nEjemplo de permuta:\n\nSi el lead dice:\n\"Hola busco un Golf GTI 2018. Tengo un Gol Power 2007 base 1.6 para entregar.\"\n\nLa salida debe clasificar:\n- escenario: \"Permuta\"\n- tiene_vehiculo_para_permutar_vender: \"Sí\"\n- vehiculo_ofrecido_texto: \"Volkswagen Gol Power 2007 base 1.6\"\n- datos_completos: \"No\"\n- datos_faltantes: [\"kilometraje del vehículo ofrecido\", \"estado general del vehículo ofrecido\", \"precio pretendido del vehículo ofrecido\", \"situación documental del vehículo ofrecido\"]\n- nivel_interes: \"Caliente\"\n- estado_sugerido: \"Procesado por IA\"\n- debe consultar stock y sugerir una opción compatible si existe.\n\nEjemplo de venta completa:\n\nSi el lead dice:\n\"Hola, quiero vender mi Renault Clio 2007. Tiene 145.000 km, está en buen estado general, funciona bien y tiene la documentación al día. Mi precio pretendido es de 6.500 USD.\"\n\nLa IA debe interpretar:\n- escenario: \"Venta\"\n- tiene_vehiculo_para_permutar_vender: \"Sí\"\n- vehiculo_ofrecido_texto: \"Renault Clio 2007\"\n- vehiculo_ofrecido.marca: \"Renault\"\n- vehiculo_ofrecido.modelo: \"Clio\"\n- vehiculo_ofrecido.anio: \"2007\"\n- vehiculo_ofrecido.kilometraje: \"145000\"\n- vehiculo_ofrecido.estado_general: \"Buen estado general, funciona bien\"\n- vehiculo_ofrecido.situacion_documental: \"Documentación al día\"\n- vehiculo_ofrecido.precio_pretendido: \"6500 USD\"\n- datos_completos: \"Sí\"\n- datos_faltantes: []\n- nivel_interes: \"Caliente\"\n- estado_sugerido: \"Procesado por IA\"\n- opciones_stock_sugeridas_texto: \"\"\n\nLa respuesta_sugerida debe ser similar a:\n\"Hola, gracias por contactarnos. Recibimos la información de tu Renault Clio 2007 con 145.000 km, en buen estado general, documentación al día y precio pretendido de 6.500 USD. Para avanzar, podemos coordinar una visita o inspección del vehículo para que el equipo comercial lo evalúe. La operación queda sujeta a revisión del estado real, documentación y evaluación comercial.\"\n\nNo debe pedir estado general ni situación documental porque ya fueron informados.\nNo debe ofrecer autos de stock porque es un escenario de Venta.\n\nEjemplo de venta incompleta:\n\nSi el lead dice:\n\"Hola, quiero vender mi Renault Clio 2007.\"\n\nLa IA debe interpretar:\n- escenario: \"Venta\"\n- vehiculo_ofrecido_texto: \"Renault Clio 2007\"\n- datos_completos: \"No\"\n- datos_faltantes: [\"kilometraje\", \"estado general\", \"precio pretendido\", \"situación documental\"]\n- nivel_interes: \"Caliente\"\n- estado_sugerido: \"Procesado por IA\"\n\nLa respuesta_sugerida debe pedir los datos faltantes y proponer avanzar luego con una inspección:\n\"Hola, gracias por contactarnos. Para poder evaluar tu Renault Clio 2007, necesitaríamos que nos indiques kilometraje, estado general, precio pretendido y situación documental. Con esa información podemos coordinar una inspección o visita para avanzar con la evaluación comercial.\"\n\nRecordatorio final:\n\n- Para Compra y Permuta, siempre consultá stock.\n- Si no hay modelo exacto, buscá alternativa similar.\n- Si hay alternativa similar dentro del presupuesto, sugerila.\n- Para Venta, no consultes stock.\n- Para Venta, el objetivo de la respuesta es coordinar inspección, visita o tasación.\n- No respondas solo pidiendo más datos cuando hay opciones compatibles en Compra o Permuta.\n- No uses \"Datos incompletos\" como estado_sugerido.\n- Devolvé únicamente JSON válido.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        752,
+        -16
+      ],
+      "id": "33a8ec94-6a62-4625-a3e4-871e7abe371e",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        672,
+        208
+      ],
+      "id": "02f9094e-d12d-4999-81b9-6af5d2b6ad70",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "aQuLmhiS63IIFMC3",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app0hPWaSmILUkCcP",
+          "mode": "list",
+          "cachedResultName": "Compra / venta",
+          "cachedResultUrl": "https://airtable.com/app0hPWaSmILUkCcP"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbltqOn8dHOZqNVgD",
+          "mode": "list",
+          "cachedResultName": "Vehículos Stock",
+          "cachedResultUrl": "https://airtable.com/app0hPWaSmILUkCcP/tbltqOn8dHOZqNVgD"
+        },
+        "returnAll": false,
+        "limit": 5,
+        "options": {
+          "view": {
+            "__rl": true,
+            "value": "viwP6g3fdErzZD9iH",
+            "mode": "list",
+            "cachedResultName": "Stock disponible",
+            "cachedResultUrl": "https://airtable.com/app0hPWaSmILUkCcP/tbltqOn8dHOZqNVgD/viwP6g3fdErzZD9iH"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        176
+      ],
+      "id": "404a1ff8-797b-4970-80e4-3424478d2d00",
+      "name": "Search records in Airtable",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "TJEnhKYjATsZJUBv",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{$json[\"fields\"][\"WhatsApp\"]}}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        832,
+        208
+      ],
+      "id": "cc7a7e9d-ad69-4397-bae0-35f6505aad4a",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "app0hPWaSmILUkCcP",
+          "mode": "list",
+          "cachedResultName": "Compra / venta",
+          "cachedResultUrl": "https://airtable.com/app0hPWaSmILUkCcP"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblVqOS57c3oWPKIT",
+          "mode": "list",
+          "cachedResultName": "Consultas Leads",
+          "cachedResultUrl": "https://airtable.com/app0hPWaSmILUkCcP/tblVqOS57c3oWPKIT"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{$node[\"Airtable Trigger\"].json[\"id\"]}}",
+            "Marca de interés": "={{ JSON.parse($json[\"output\"]).marca_interes || $node[\"Airtable Trigger\"].json[\"fields\"][\"Marca de interés\"] || \"\" }}",
+            "Modelo de interés": "={{ JSON.parse($json[\"output\"]).modelo_interes || $node[\"Airtable Trigger\"].json[\"fields\"][\"Modelo de interés\"] || \"\" }}",
+            "Tipo de vehículo": "={{ JSON.parse($json[\"output\"]).tipo_vehiculo || $node[\"Airtable Trigger\"].json[\"fields\"][\"Tipo de vehículo\"] || \"\" }}",
+            "Forma de pago": "={{ JSON.parse($json[\"output\"]).forma_pago || $node[\"Airtable Trigger\"].json[\"fields\"][\"Forma de pago\"] || \"No especificado\" }}",
+            "Tiene vehículo para permutar/vender": "={{ JSON.parse($json[\"output\"]).tiene_vehiculo_para_permutar_vender }}",
+            "Vehículo ofrecido": "={{ JSON.parse($json[\"output\"]).vehiculo_ofrecido_texto }}",
+            "Datos completos": "={{ JSON.parse($json[\"output\"]).datos_completos }}",
+            "Datos faltantes": "={{ JSON.parse($json[\"output\"]).datos_faltantes.join(\", \") }}",
+            "Estado": "={{ \"Procesado por IA\" }}",
+            "Respuesta IA": "={{ JSON.parse($json[\"output\"]).resumen_ia + \"\\n\\nRespuesta sugerida:\\n\" + JSON.parse($json[\"output\"]).respuesta_sugerida }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Lead",
+              "displayName": "Lead",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Cliente",
+              "displayName": "Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Nombre",
+              "displayName": "Nombre",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "WhatsApp",
+              "displayName": "WhatsApp",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Mensaje original",
+              "displayName": "Mensaje original",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Canal de entrada",
+              "displayName": "Canal de entrada",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "WhatsApp",
+                  "value": "WhatsApp"
+                },
+                {
+                  "name": "Formulario web",
+                  "value": "Formulario web"
+                },
+                {
+                  "name": "Gmail",
+                  "value": "Gmail"
+                },
+                {
+                  "name": "Formulario Airtable",
+                  "value": "Formulario Airtable"
+                }
+              ],
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Escenario",
+              "displayName": "Escenario",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "options": [
+                {
+                  "name": "Compra",
+                  "value": "Compra"
+                },
+                {
+                  "name": "Permuta",
+                  "value": "Permuta"
+                },
+                {
+                  "name": "Venta",
+                  "value": "Venta"
+                }
+              ],
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Tipo de búsqueda",
+              "displayName": "Tipo de búsqueda",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Marca de interés",
+              "displayName": "Marca de interés",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Modelo de interés",
+              "displayName": "Modelo de interés",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Presupuesto mínimo",
+              "displayName": "Presupuesto mínimo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Presupuesto máximo",
+              "displayName": "Presupuesto máximo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Moneda",
+              "displayName": "Moneda",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "USD",
+                  "value": "USD"
+                },
+                {
+                  "name": "ARS",
+                  "value": "ARS"
+                }
+              ],
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Año mínimo",
+              "displayName": "Año mínimo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Tipo de vehículo",
+              "displayName": "Tipo de vehículo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Transmisión preferida",
+              "displayName": "Transmisión preferida",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Automática",
+                  "value": "Automática"
+                },
+                {
+                  "name": "No especificado",
+                  "value": "No especificado"
+                },
+                {
+                  "name": "Manual / Automática",
+                  "value": "Manual / Automática"
+                }
+              ],
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Forma de pago",
+              "displayName": "Forma de pago",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Tiene vehículo para permutar/vender",
+              "displayName": "Tiene vehículo para permutar/vender",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "No",
+                  "value": "No"
+                },
+                {
+                  "name": "Sí",
+                  "value": "Sí"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Vehículo ofrecido",
+              "displayName": "Vehículo ofrecido",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Datos completos",
+              "displayName": "Datos completos",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "No",
+                  "value": "No"
+                },
+                {
+                  "name": "Sí",
+                  "value": "Sí"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Datos faltantes",
+              "displayName": "Datos faltantes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Intención",
+              "displayName": "Intención",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Nivel de interés",
+              "displayName": "Nivel de interés",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Caliente",
+                  "value": "Caliente"
+                },
+                {
+                  "name": "VIP",
+                  "value": "VIP"
+                },
+                {
+                  "name": "Tibio",
+                  "value": "Tibio"
+                }
+              ],
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Estado",
+              "displayName": "Estado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Datos incompletos",
+                  "value": "Datos incompletos"
+                },
+                {
+                  "name": "Pendiente aprobación humana",
+                  "value": "Pendiente aprobación humana"
+                },
+                {
+                  "name": "Procesado por IA",
+                  "value": "Procesado por IA"
+                },
+                {
+                  "name": "Pendiente lectura IA",
+                  "value": "Pendiente lectura IA"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Respuesta IA",
+              "displayName": "Respuesta IA",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Thread ID",
+              "displayName": "Thread ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Fecha creación",
+              "displayName": "Fecha creación",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Vehículos Ofrecidos",
+              "displayName": "Vehículos Ofrecidos",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Propuestas",
+              "displayName": "Propuestas",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Errores Logs",
+              "displayName": "Errores Logs",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Field 31",
+              "displayName": "Field 31",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Field 32",
+              "displayName": "Field 32",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        -16
+      ],
+      "id": "dee0cb01-0492-484b-8608-f17da2b4896a",
+      "name": "Update record",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "TJEnhKYjATsZJUBv",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "authentication": "airtableTokenApi",
+        "baseId": {
+          "__rl": true,
+          "value": "app0hPWaSmILUkCcP",
+          "mode": "id"
+        },
+        "tableId": {
+          "__rl": true,
+          "value": "tblVqOS57c3oWPKIT",
+          "mode": "id"
+        },
+        "triggerField": "Fecha Trigger",
+        "additionalFields": {
+          "viewId": "viwJ6I3Bmcl8y5JGr"
+        }
+      },
+      "type": "n8n-nodes-base.airtableTrigger",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -16
+      ],
+      "id": "ba367248-f4a5-4718-885b-528e4562b2c9",
+      "name": "Airtable Trigger",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "TJEnhKYjATsZJUBv",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "borgiavalen@gmail.com",
+        "subject": "=Resolución IA pendiente de revisión - {{$node[\"Airtable Trigger\"].json[\"fields\"][\"Nombre\"]}}",
+        "message": "=<h2>🚗 Lead procesado por IA</h2>\n\n<p>El flujo de IA finalizó el análisis de un nuevo lead y dejó la resolución cargada en Airtable.</p>\n\n<hr>\n\n<h3>📌 Datos del lead</h3>\n\n<p>\n<b>Lead:</b> {{$node[\"Airtable Trigger\"].json[\"fields\"][\"Lead\"] || \"No informado\"}}<br>\n<b>Cliente:</b> {{$node[\"Airtable Trigger\"].json[\"fields\"][\"Nombre\"] || \"No informado\"}}<br>\n<b>WhatsApp:</b> {{$node[\"Airtable Trigger\"].json[\"fields\"][\"WhatsApp\"] || \"No informado\"}}<br>\n\n</p>\n\n<p>\n<b>Mensaje original:</b><br>\n{{$node[\"Airtable Trigger\"].json[\"fields\"][\"Mensaje original\"] || \"No informado\"}}\n</p>\n\n<p>\n<b>Presupuesto máximo:</b> {{$node[\"Airtable Trigger\"].json[\"fields\"][\"Presupuesto máximo\"] || \"No informado\"}} {{$node[\"Airtable Trigger\"].json[\"fields\"][\"Moneda\"] || \"\"}}<br>\n<b>Tipo de vehículo:</b> {{$node[\"Airtable Trigger\"].json[\"fields\"][\"Tipo de vehículo\"] || \"No informado\"}}<br>\n<b>Vehículo ofrecido:</b> {{$node[\"Airtable Trigger\"].json[\"fields\"][\"Vehículo ofrecido\"] || \"No informado\"}}\n</p>\n\n<hr>\n\n<h3>🤖 Resolución de IA</h3>\n\n<p>\n<b>Estado del lead:</b><br>\n{{$node[\"Update record\"].json[\"fields\"][\"Estado\"] || \"No informado\"}}\n</p>\n\n<p>\n<b>Datos faltantes:</b><br>\n{{$node[\"Update record\"].json[\"fields\"][\"Datos faltantes\"] || \"No hay datos faltantes informados\"}}\n</p>\n\n<p>\n<b>Respuesta IA:</b><br>\n{{$node[\"Update record\"].json[\"fields\"][\"Respuesta IA\"] || \"No informado\"}}\n</p>\n\n<hr>\n\n<h3>✅ Acción requerida</h3>\n\n<p>\nRevisar el lead en Airtable antes de contactar al cliente final.\n</p>\n\n<p>\n<b>Importante:</b> la IA no envió ninguna respuesta automática al cliente.  \nEl caso queda pendiente de revisión humana.\n</p>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        -16
+      ],
+      "id": "f712163f-05c5-49fe-892e-233c5ddf4756",
+      "name": "Send a message",
+      "webhookId": "d2740e71-cf81-44b7-bb43-236126799b4c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rZ5oPcVZWpwqVB01",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search records in Airtable": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Update record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update record": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "cQtu86srLoxmcIXn",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "905370b6-88e5-460a-a560-5917c3231a95",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "65ed65753403d450630b66dce69d15a7e6a8deb29b3d2d344a57d15bf937f0f9"
+  },
+  "nodeGroups": [],
+  "id": "cSd4iUzGDVPHgt5S",
+  "tags": []
+}
